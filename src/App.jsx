@@ -8,7 +8,6 @@ import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Reports from "./pages/Reports";
 import Login from "./pages/Login";
-import AIAssistant from "./components/AIAssistant";
 import { STORAGE_KEYS } from "./utils/constants";
 import { autoAssignOperators } from "./utils/autoAssignment";
 
@@ -155,16 +154,6 @@ function App() {
           )}
         </div>
       </main>
-
-      <AIAssistant
-        setActivePage={setActivePage}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        setAttendance={setAttendance}
-        setSkillMatrix={setSkillMatrix}
-        setOperationBulletin={setOperationBulletin}
-        setOperatorAssignments={setOperatorAssignments}
-      />
     </div>
   );
 }
