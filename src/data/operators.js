@@ -1,0 +1,67 @@
+export const operators = [
+  {
+    id: "OP001",
+    name: "Anitha",
+    line: "Line 3",
+    product: "Trouser",
+    operation: "Waistband Attach",
+    present: true,
+    skills: {
+      "Waistband Attach": 92,
+      "Side Seam": 78,
+      "Pocket Attach": 75,
+    },
+  },
+  {
+    id: "OP002",
+    name: "Meena",
+    line: "Line 3",
+    product: "Trouser",
+    operation: "Side Seam",
+    present: true,
+    skills: {
+      "Side Seam": 95,
+      "Waistband Attach": 88,
+      "Fly Stitch": 82,
+    },
+  },
+  {
+    id: "OP003",
+    name: "Lakshmi",
+    line: "Line 3",
+    product: "Trouser",
+    operation: "Pocket Attach",
+    present: true,
+    skills: {
+      "Pocket Attach": 91,
+      "Waistband Attach": 80,
+      "Bottom Hem": 76,
+    },
+  },
+  {
+    id: "OP004",
+    name: "Fathima",
+    line: "Line 3",
+    product: "Trouser",
+    operation: "Bottom Hem",
+    present: true,
+    skills: {
+      "Bottom Hem": 89,
+      "Side Seam": 84,
+      "Pocket Attach": 78,
+    },
+  },
+  {
+    id: "OP005",
+    name: "Divya",
+    line: "Line 3",
+    product: "Trouser",
+    operation: "Fly Stitch",
+    present: true,
+    skills: {
+      "Fly Stitch": 94,
+      "Waistband Attach": 86,
+      "Pocket Attach": 81,
+    },
+  },
+];
