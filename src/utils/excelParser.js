@@ -20,7 +20,33 @@ export function readExcelFile(file, callback) {
   reader.readAsArrayBuffer(file);
 }
 
+// ─── Format detector ────────────────────────────────────────────────────────
+function detectSkillMatrixFormat(rows) {
+  // Format A: rows[4] contains "EMP ID" or "OPERATOR NAME" (original complex format)
+  if (rows[4] && rows[4].some(cell =>
+    String(cell).trim().toUpperCase() === "EMP ID" ||
+    String(cell).trim().toUpperCase() === "OPERATOR NAME"
+  )) {
+    return "A";
+  }
+  // Format B: simple wide format — first non-empty row has operation names as headers
+  return "B";
+}
+
 export function parseSkillMatrix(rows) {
+  const format = detectSkillMatrixFormat(rows);
+  if (format === "A") {
+    return parseSkillMatrixFormatA(rows);
+  } else {
+    return parseSkillMatrixFormatB(rows);
+  }
+}
+
+// ─── Format A: original complex format ──────────────────────────────────────
+// Row 3 (index 2): operation names starting from col index 6+
+// Row 5 (index 4): headers — EMP ID, OPERATOR NAME, GRADE
+// Row 6+: data rows
+function parseSkillMatrixFormatA(rows) {
   const operationRow = rows[2];
   const headerRow = rows[4];
   const dataRows = rows.slice(5);
@@ -70,7 +96,67 @@ export function parseSkillMatrix(rows) {
   return parsed;
 }
 
-// Normalize header cell — handles line breaks, extra spaces, different formats
+// ─── Format B: simple wide format ───────────────────────────────────────────
+// First non-empty row: "Operator Name" (col 0), optional "Grade" (col 1), then operation names
+// Data rows: operator name, optional grade, then 1/0 efficiency values
+function parseSkillMatrixFormatB(rows) {
+  // Find first non-empty row as header
+  const headerRowIndex = rows.findIndex(row =>
+    row.some(cell => cell !== "" && cell !== null && cell !== undefined)
+  );
+
+  if (headerRowIndex === -1) return [];
+
+  const headerRow = rows[headerRowIndex];
+
+  // Detect grade column
+  const gradeIndex = headerRow.findIndex(cell =>
+    String(cell).trim().toUpperCase() === "GRADE"
+  );
+
+  // Operations start after operator name col (index 0) and optional grade col
+  const opStartIndex = gradeIndex !== -1 ? Math.max(gradeIndex + 1, 2) : 1;
+
+  // Get operation names from header row
+  const operations = headerRow
+    .slice(opStartIndex)
+    .map(op => String(op || "").trim())
+    .filter(op => op !== "");
+
+  const dataRows = rows.slice(headerRowIndex + 1);
+  const parsed = [];
+  let empCounter = 1;
+
+  dataRows.forEach((row) => {
+    const operatorName = row[0];
+    if (!operatorName || !String(operatorName).trim()) return;
+
+    const grade = gradeIndex !== -1
+      ? String(row[gradeIndex] || "B").trim()
+      : "B";
+
+    const empId = `EMP${String(empCounter++).padStart(3, "0")}`;
+
+    operations.forEach((operation, i) => {
+      const efficiency = row[opStartIndex + i];
+
+      if (operation && typeof efficiency === "number" && efficiency > 0) {
+        parsed.push({
+          operatorId: empId,
+          operatorName: String(operatorName).trim(),
+          operatorNameKey: cleanOperatorName(operatorName),
+          grade,
+          operation,
+          efficiency,
+        });
+      }
+    });
+  });
+
+  return parsed;
+}
+
+// ─── Normalize header cell ───────────────────────────────────────────────────
 function normalizeHeader(cell) {
   return String(cell)
     .trim()
@@ -79,7 +165,6 @@ function normalizeHeader(cell) {
     .replace(/\s+/g, " ");
 }
 
-// Find column index with flexible matching
 function findColumn(headerRow, ...keywords) {
   return headerRow.findIndex((cell) => {
     const normalized = normalizeHeader(cell);
@@ -87,6 +172,7 @@ function findColumn(headerRow, ...keywords) {
   });
 }
 
+// ─── Operation Bulletin parser (unchanged) ───────────────────────────────────
 export function parseOperationBulletin(rows) {
   const headerRowIndex = rows.findIndex((row) =>
     row.some((cell) =>
@@ -112,7 +198,6 @@ export function parseOperationBulletin(rows) {
   const sectionIndex = findColumn(headerRow, "SEC");
   const operatorIndex = findColumn(headerRow, "OPERATOR NAME");
 
-  // Extract section names from the row just before the header
   const preHeaderSections = [];
   if (headerRowIndex > 0) {
     const preHeaderRow = rows[headerRowIndex - 1];
@@ -132,7 +217,6 @@ export function parseOperationBulletin(rows) {
     });
   }
 
-  // First pass — find checkpoint row positions and count real operations
   const checkpointPositions = [];
   let realOpCount = 0;
 
@@ -157,17 +241,15 @@ export function parseOperationBulletin(rows) {
     if (opVal) realOpCount++;
   }
 
-  // Determine section boundaries
   const sectionAssignments = new Map();
 
   if (sectionIndex !== -1) {
-    // Old format — section column exists, handled row by row below
+    // handled row by row below
   } else if (preHeaderSections.length > 0) {
     if (
       checkpointPositions.length > 0 &&
       preHeaderSections.length >= checkpointPositions.length + 1
     ) {
-      // Use checkpoints as boundaries between sections
       let sectionIdx = 0;
       let currentBoundary = checkpointPositions[0]?.index ?? dataRows.length;
 
@@ -184,7 +266,6 @@ export function parseOperationBulletin(rows) {
         );
       }
     } else {
-      // No checkpoints — divide operations equally among sections
       const rowsPerSection = Math.ceil(realOpCount / preHeaderSections.length);
       let opCounter = 0;
 
@@ -202,7 +283,6 @@ export function parseOperationBulletin(rows) {
     }
   }
 
-  // Second pass — parse operations
   const parsed = [];
   let currentSection = preHeaderSections[0] || "";
 
@@ -216,17 +296,14 @@ export function parseOperationBulletin(rows) {
       (rowTextUpper[0] === "TOTAL" && !row[operationIndex])
     ) break;
 
-    // Update section from dedicated SEC column
     if (sectionIndex !== -1 && row[sectionIndex]) {
       currentSection = String(row[sectionIndex]).trim();
     }
 
-    // Update section from pre-computed assignment map
     if (sectionAssignments.has(i)) {
       currentSection = sectionAssignments.get(i);
     }
 
-    // Check if SL column has inspection/checkpoint text (new OB format)
     const slText = String(row[slNoIndex !== -1 ? slNoIndex : 0] || "").trim();
     const slIsCheckpoint =
       slText.toUpperCase().includes("INSPECTION") ||
